@@ -1,0 +1,127 @@
+{
+  "api_key": {
+    "description": "海纳 API Key",
+    "type": "string",
+    "default": "",
+    "secret": true,
+    "hint": "在 https://ai.zhidemai.com/haina-platform 的「API Key 管理」申请，6 项能力共用同一个 Key；请确认 Key 已开通需要的能力。"
+  },
+  "inject_guide": {
+    "description": "向系统提示词注入简版购物指南",
+    "type": "bool",
+    "default": false,
+    "hint": "插件自带技能 haina-shopping-assistant 需开启 AstrBot 的 Computer Use（本地运行时）才能被模型读取。未开启时可打开此项，作为简版替代（内容固定，不影响提示词缓存）。"
+  },
+  "show_link": {
+    "description": "结果中包含商品/文章链接",
+    "type": "bool",
+    "default": true
+  },
+  "max_output_chars": {
+    "description": "单次工具结果最大字数",
+    "type": "int",
+    "default": 6000,
+    "hint": "超出部分截断，避免占满模型上下文。"
+  },
+  "product_size": {
+    "description": "【商品检索】默认返回商品数",
+    "type": "int",
+    "default": 10,
+    "hint": "1-30。"
+  },
+  "product_sort": {
+    "description": "【商品检索】默认排序",
+    "type": "string",
+    "default": "",
+    "options": ["", "price_asc", "price_desc", "sale_qty", "good_comments_share"],
+    "labels": ["综合", "价格从低到高", "价格从高到低", "销量", "好评率"],
+    "hint": "模型未指定排序时使用。"
+  },
+  "product_mall_id": {
+    "description": "【商品检索】默认限定商城 ID",
+    "type": "string",
+    "default": "",
+    "hint": "留空为全网。多个 ID 用英文分号分隔，如 183;243;247。"
+  },
+  "discount_size": {
+    "description": "【好价检索】默认返回条数",
+    "type": "int",
+    "default": 5,
+    "hint": "1-20。"
+  },
+  "image_num": {
+    "description": "【图搜商品】默认返回相似商品数",
+    "type": "int",
+    "default": 5
+  },
+  "image_crop": {
+    "description": "【图搜商品】开启主体识别",
+    "type": "bool",
+    "default": true
+  },
+  "image_with_haojia": {
+    "description": "【图搜商品】返回关联好价",
+    "type": "bool",
+    "default": true
+  },
+  "graph_size": {
+    "description": "【知识图谱】最多展示产品实体数",
+    "type": "int",
+    "default": 3,
+    "hint": "1-10。"
+  },
+  "content_size": {
+    "description": "【内容检索/内容检索 Pro】默认返回条数",
+    "type": "int",
+    "default": 5,
+    "hint": "1-20。"
+  },
+  "content_max_chars": {
+    "description": "【内容检索】每条摘要最大字数",
+    "type": "int",
+    "default": 300
+  },
+  "content_query_rewrite": {
+    "description": "【内容检索】启用服务端问题改写",
+    "type": "bool",
+    "default": false,
+    "hint": "开启后响应变慢。"
+  },
+  "content_data_source": {
+    "description": "【内容检索】数据来源",
+    "type": "list",
+    "default": [],
+    "hint": "留空为全部。可选标识如 zdm_shequ、Zhihu、weixin、jinritoutiao。"
+  },
+  "content_start_time": {
+    "description": "【内容检索】只检索此时间之后的内容",
+    "type": "string",
+    "default": "",
+    "hint": "格式 YYYY-MM-DD HH:MM:SS，留空不限。"
+  },
+  "web_time_range": {
+    "description": "【内容检索 Pro】默认时间范围",
+    "type": "string",
+    "default": "TwoYear",
+    "options": ["OneDay", "OneWeek", "OneMonth", "OneYear", "TwoYear", "NoLimit"],
+    "labels": ["一天", "一周", "一个月", "一年", "两年", "不限"]
+  },
+  "timeout": {
+    "description": "接口超时时间（秒）",
+    "type": "int",
+    "default": 30,
+    "hint": "内容检索建议不低于 30。"
+  },
+  "request_from": {
+    "description": "调用方标识",
+    "type": "string",
+    "default": "astrbot",
+    "hint": "接口的 request_from 字段。"
+  },
+  "gateway_base": {
+    "description": "网关地址",
+    "type": "string",
+    "default": "https://gw-openapi.zhidemai.com",
+    "hint": "一般无需修改。"
+  }
+}

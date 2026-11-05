@@ -1,0 +1,11 @@
+name: astrbot_plugin_haina_price
+display_name: 海纳电商查价
+desc: |
+  基于值得买「海纳开放平台」的电商查价插件。注册 LLM 工具，让模型在用户询问价格、比价、
+  哪里买便宜时自动查询京东、天猫、淘宝、拼多多等全网商品价格，并支持好价检索、以图搜商品、产品知识图谱、消费内容与全网内容检索，覆盖海纳全部 6 项能力；接口参数全部交由模型决定，并自带「海纳购物管家」技能。
+short_desc: LLM 自动触发的全网电商查价（值得买海纳 API）。
+version: "1.2.0"
+author: monbed
+repo: https://github.com/monbed/astrbot_plugin_haina_price
+astrbot_version: ">=4.24.0"
+support_platforms: []
