@@ -333,7 +333,7 @@ TOOL_SPECS: dict[str, dict] = {
         "parameters": _obj(
             {
                 "query": {"type": "string", "description": "搜索问题，1~200字，例：'扫地机器人 选购指南'、'戴森吹风机 评测'"},
-                "return_size": {"type": "integer", "minimum": 1, "maximum": 50, "description": "返回文章数"},
+                "return_size": {"type": "integer", "minimum": 1, "maximum": 100, "description": "返回文章数"},
                 "query_rewrite": {"type": "boolean", "description": "是否让服务端改写问题（口语化问题可开启，会增加耗时）"},
                 "correlate_enhance": {"type": "boolean", "description": "是否开启相关性增强（默认开启）"},
                 "start_time": {"type": "string", "description": "只要此时间之后的内容，格式 'YYYY-MM-DD HH:MM:SS'；需要近期内容时传，否则不传"},
@@ -511,23 +511,26 @@ class HainaPricePlugin(Star):
         sort = str(self._cfg("product_sort", "") if sort is None else sort).strip()
         if sort not in PRODUCT_SORTS:  # 空值即综合排序
             sort = ""
-        size = _to_int(kw.get("size"), 0, 0, 30) or _to_int(self._cfg("product_size", 10), 10, 1, 30)
+        size = _to_int(kw.get("size"), 0, 0, 30) or _to_int(self._cfg("product_size", 20), 20, 1, 30)
         mall_id = kw.get("mall_id")
         mall_id = str(self._cfg("product_mall_id", "") if mall_id in (None, "") else mall_id)
-        payload = {
+        payload: dict[str, Any] = {
             "request_from": self._request_from(),
             "question_id": uuid.uuid4().hex,
             "product_query": keyword,
             "query_process": 0 if str(kw.get("query_process", 1)) == "0" else 1,
             "size": size,
+        }
+        # 可选筛选项只在有值时传，避免空字符串 / null 触发服务端参数校验错误
+        optional = {
             "mall_id": mall_id.replace("；", ";").replace(",", ";").strip(),
             "brand_name": str(kw.get("brand_name") or kw.get("brand") or "").strip(),
             "category_name": str(kw.get("category_name") or kw.get("category") or "").strip(),
             "min_price": lo,
             "max_price": hi,
             "sort": sort,
-            "fields": "",
         }
+        payload.update({k: v for k, v in optional.items() if v not in (None, "")})
 
         async def work() -> str:
             rows = self._rows(await self._call("product", payload), "rows")[:size]
@@ -591,7 +594,6 @@ class HainaPricePlugin(Star):
             "product_query": keyword,
             "query_process": 0 if str(kw.get("query_process", 1)) == "0" else 1,
             "size": size,
-            "fields": "",
         }
 
         async def work() -> str:
@@ -707,13 +709,14 @@ class HainaPricePlugin(Star):
 
     async def tool_image_search(self, event: AstrMessageEvent, **kw: Any) -> str:
         payload: dict[str, Any] = {
-            "img_num": _to_int(kw.get("img_num"), 0, 0, 20) or _to_int(self._cfg("image_num", 5), 5, 1, 20),
-            "with_haojia": 1 if _to_bool(kw.get("with_haojia"), bool(self._cfg("image_with_haojia", True))) else 0,
-            # 文档中这两个开关以字符串 "True"/"False" 传递
-            "is_crop": "True" if _to_bool(kw.get("is_crop"), bool(self._cfg("image_crop", True))) else "False",
+            "img_num": _to_int(kw.get("img_num"), 0, 0, 20) or _to_int(self._cfg("image_num", 2), 2, 1, 20),
+            "with_haojia": 1 if _to_bool(kw.get("with_haojia"), bool(self._cfg("image_with_haojia", False))) else 0,
         }
-        if kw.get("is_auto_first_cate_name") is not None:
-            payload["is_auto_first_cate_name"] = "True" if _to_bool(kw.get("is_auto_first_cate_name"), False) else "False"
+        # 选填开关只在开启时传 "True"，关闭时不传（与平台在线调试一致；传 "False" 等值可能导致服务端 500）
+        if _to_bool(kw.get("is_crop"), bool(self._cfg("image_crop", False))):
+            payload["is_crop"] = "True"
+        if _to_bool(kw.get("is_auto_first_cate_name"), False):
+            payload["is_auto_first_cate_name"] = "True"
         threshold = _to_float(kw.get("threshold"))
         if threshold is not None and 0 <= threshold <= 1:
             payload["threshold"] = threshold
@@ -805,7 +808,7 @@ class HainaPricePlugin(Star):
         query = str(kw.get("query") or "").strip()
         if not query:
             return "错误：query 不能为空。"
-        size = _to_int(kw.get("return_size"), 0, 0, 50) or _to_int(self._cfg("content_size", 5), 5, 1, 50)
+        size = _to_int(kw.get("return_size"), 0, 0, 100) or _to_int(self._cfg("content_size", 20), 20, 1, 100)
         payload: dict[str, Any] = {
             "query": query[:200],
             "question_id": uuid.uuid4().hex,
@@ -863,7 +866,7 @@ class HainaPricePlugin(Star):
         time_range = str(kw.get("time_range") or "").strip()
         if time_range not in TIME_RANGES:
             time_range = str(self._cfg("web_time_range", "TwoYear") or "TwoYear")
-        size = _to_int(kw.get("recall_num"), 0, 0, 50) or _to_int(self._cfg("content_size", 5), 5, 1, 50)
+        size = _to_int(kw.get("recall_num"), 0, 0, 50) or _to_int(self._cfg("web_size", 50), 50, 1, 50)
         payload = {
             "query": query[:100],
             "time_range": time_range,

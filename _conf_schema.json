@@ -26,8 +26,8 @@
   "product_size": {
     "description": "【商品检索】默认返回商品数",
     "type": "int",
-    "default": 10,
-    "hint": "1-30。"
+    "default": 20,
+    "hint": "1-30，默认取文档示例值 20。"
   },
   "product_sort": {
     "description": "【商品检索】默认排序",
@@ -52,17 +52,20 @@
   "image_num": {
     "description": "【图搜商品】默认返回相似商品数",
     "type": "int",
-    "default": 5
+    "default": 2,
+    "hint": "1-20，默认取文档示例值 2。"
   },
   "image_crop": {
     "description": "【图搜商品】开启主体识别",
     "type": "bool",
-    "default": true
+    "default": false,
+    "hint": "默认不传该参数，由服务端决定；模型也可在背景复杂时自行开启。"
   },
   "image_with_haojia": {
     "description": "【图搜商品】返回关联好价",
     "type": "bool",
-    "default": true
+    "default": false,
+    "hint": "对应 with_haojia，默认取文档示例值 0（关闭）。开启后只额外返回关联好价 ID。"
   },
   "image_allow_upload": {
     "description": "【图搜商品】允许上传图片到第三方图床",
@@ -91,10 +94,16 @@
     "hint": "1-10。"
   },
   "content_size": {
-    "description": "【内容检索/内容检索 Pro】默认返回条数",
+    "description": "【内容检索】默认返回条数",
     "type": "int",
-    "default": 5,
-    "hint": "1-20。"
+    "default": 20,
+    "hint": "1-100，默认取文档示例值 20。"
+  },
+  "web_size": {
+    "description": "【内容检索 Pro】默认返回条数",
+    "type": "int",
+    "default": 50,
+    "hint": "1-50，默认取文档示例值 50。"
   },
   "content_max_chars": {
     "description": "【内容检索】每条摘要最大字数",
@@ -130,7 +139,7 @@
     "description": "接口超时时间（秒）",
     "type": "int",
     "default": 30,
-    "hint": "内容检索建议不低于 30。"
+    "hint": "内容检索固定至少 60 秒（文档建议值），其余接口文档建议 30 秒。"
   },
   "request_from": {
     "description": "调用方标识",
