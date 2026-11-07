@@ -16,12 +16,8 @@
 数据源、改写/增强开关等）全部暴露给 LLM 决定；LLM 未传的参数使用插件配置中的默认值。
 """
 
-import asyncio
 import base64
-import html
 import json
-import os
-import re
 import uuid
 from collections.abc import Awaitable, Callable
 from typing import Any
@@ -58,9 +54,8 @@ GRAPH_CATEGORIES = [
     "电脑数码", "家用电器", "个护化妆", "母婴", "宠物", "运动户外", "食品酒水", "医药健康",
     "家居百货", "服饰", "鞋类", "箱包", "配饰", "手表", "乐器", "模玩盲盒", "图书",
 ]  # fmt: skip
-# 图床上传端点（均为匿名上传，无需 Key）。AstrBot 4.26+ 会把入站图片改写为本地临时文件，
-# 海纳图搜只接受公网 img_url，故本地图片需先上传图床。思路移植自同作者的
-# astrbot_plugin_serpapi_imgsearch（https://github.com/monbed/astrbot_plugin_serpapi_imgsearch）。
+# 图床上传端点（均为匿名上传，无需 Key）。海纳图搜只接受公网 img_url，而 AstrBot 收到的图片
+# 通常是本地临时文件，故先上传图床换取公网链接。
 CATBOX_UPLOAD_URL = "https://catbox.moe/user/api.php"  # 永久
 LITTERBOX_UPLOAD_URL = "https://litterbox.catbox.moe/resources/internals/api.php"  # 临时 1h
 UGUU_UPLOAD_URL = "https://uguu.se/upload.php"  # 临时约 3h，响应为 JSON
@@ -70,8 +65,6 @@ USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 )
-# CQ 码字符串上报中图片/商城表情的 url 参数（值经 CQ 转义，需 HTML 反转义）
-_CQ_IMAGE_URL_RE = re.compile(r"\[CQ:(?:image|mface)[^\]]*?,url=([^,\]]+)")
 
 APPLY_HINT = "请到值得买海纳开放平台 https://ai.zhidemai.com/haina-platform 申请 API Key 并在插件配置中填写。"
 
@@ -202,12 +195,6 @@ def _is_http(value: Any) -> bool:
     return str(value or "").strip().startswith(("http://", "https://"))
 
 
-def _read_file_bytes(path: str) -> bytes:
-    """读取本地文件（供 asyncio.to_thread 调用）。"""
-    with open(path, "rb") as f:
-        return f.read()
-
-
 def _guess_image_type(data: bytes) -> tuple[str, str]:
     """按文件头推断 (扩展名, MIME)，图床按扩展名生成链接，未知回退 jpg。"""
     if data.startswith(b"\x89PNG\r\n\x1a\n"):
@@ -236,35 +223,6 @@ def _first_image(event: AstrMessageEvent | None) -> Comp.Image | None:
                 if isinstance(sub, Comp.Image) and (sub.url or sub.file):
                     return sub
     return None
-
-
-def _urls_from_onebot_segments(message: Any) -> list[str]:
-    """从 OneBot v11 消息段（dict 数组或 CQ 码字符串）提取 image/mface 直链。"""
-    urls: list[str] = []
-    if isinstance(message, str):
-        for m in _CQ_IMAGE_URL_RE.finditer(message):
-            url = html.unescape(m.group(1)).strip()
-            if _is_http(url):
-                urls.append(url)
-    elif isinstance(message, list):
-        for seg in message:
-            if isinstance(seg, dict) and seg.get("type") in ("image", "mface"):
-                url = str((seg.get("data") or {}).get("url") or "").strip()
-                if _is_http(url):
-                    urls.append(url)
-    return urls
-
-
-def _local_path(source: str) -> str:
-    """把 file:// 或本地路径转为可读路径，非本地来源返回空串。"""
-    if source.startswith("file://"):
-        path = source[7:]
-        if path.startswith("/") and len(path) > 2 and path[2] == ":":  # file:///C:/...
-            path = path[1:]
-        return path
-    if re.match(r"^[A-Za-z]:[/\\]", source) or source.startswith("/"):
-        return source
-    return ""
 
 
 # ----------------------------------------------------------------------
@@ -339,7 +297,7 @@ TOOL_SPECS: dict[str, dict] = {
             {
                 "img_url": {
                     "type": "string",
-                    "description": "可选。公网可访问的图片 http(s) 直链；不传则自动使用用户当前消息或引用消息中的图片（本地图片会自动上传图床转为公网链接）",
+                    "description": "可选。公网可访问的图片 http(s) 链接；不传则自动使用用户当前消息或引用消息中的图片",
                 },
                 "img_num": {"type": "integer", "minimum": 1, "maximum": 20, "description": "返回相似商品数"},
                 "threshold": {"type": "number", "minimum": 0, "maximum": 1, "description": "相似度阈值0~1，结果太杂时调高，不传用服务默认"},
@@ -494,6 +452,8 @@ class HainaPricePlugin(Star):
                 if resp.status == 429:
                     raise HainaApiError("调用过于频繁或额度已用完（429），请稍后重试")
                 if resp.status >= 400:
+                    body = _clip(await resp.text(errors="replace"), 300)
+                    logger.warning(f"[haina_price] {NAMES[name]} HTTP {resp.status} 响应：{body}")
                     raise HainaApiError(f"接口返回 HTTP {resp.status}")
                 data = await resp.json(content_type=None)
         except HainaApiError:
@@ -669,64 +629,6 @@ class HainaPricePlugin(Star):
     # ------------------------------------------------------------------
     # 3. 图搜商品
     # ------------------------------------------------------------------
-    @staticmethod
-    async def _onebot_image_url(event: AstrMessageEvent | None) -> str:
-        """aiocqhttp 专用：从 OneBot 原始上报中取图片直链。
-
-        AstrBot 4.26+ 会把入站 Image 组件的 url 改写为本地路径，但当前消息的 raw_message
-        与被引用消息的 get_msg 返回中仍保留 QQ 直链，复用它可省去图床上传。
-        """
-        if event is None:
-            return ""
-        try:
-            if event.get_platform_name() != "aiocqhttp":
-                return ""
-            raw = getattr(getattr(event, "message_obj", None), "raw_message", None)
-            message = raw.get("message") if isinstance(raw, dict) else getattr(raw, "message", None)
-            urls = _urls_from_onebot_segments(message)
-            if urls:
-                return urls[0]
-            reply = next((c for c in (event.get_messages() or []) if isinstance(c, Comp.Reply)), None)
-            if reply is None or reply.id is None:
-                return ""
-            msg = await event.bot.get_msg(message_id=int(reply.id))
-            urls = _urls_from_onebot_segments((msg or {}).get("message"))
-            return urls[0] if urls else ""
-        except Exception as exc:
-            logger.debug(f"[haina_price] 读取 OneBot 原始图片直链失败：{exc}")
-            return ""
-
-    @staticmethod
-    async def _read_source_bytes(source: str) -> bytes | None:
-        """读取本地路径 / file:// / base64:// / data:image 来源的图片字节。"""
-        source = (source or "").strip()
-        if not source:
-            return None
-        try:
-            if source.startswith("base64://"):
-                return base64.b64decode(source[9:])
-            m = re.match(r"data:image/[\w.+-]+;base64,(.+)", source, re.S)
-            if m:
-                return base64.b64decode(m.group(1))
-            path = _local_path(source)
-            if path and os.path.isfile(path):
-                return await asyncio.to_thread(_read_file_bytes, path)
-        except Exception as exc:
-            logger.debug(f"[haina_price] 读取本地图片失败：{exc}")
-        return None
-
-    async def _image_bytes(self, image: Comp.Image | None) -> bytes | None:
-        """还原图片组件字节：优先框架的 convert_to_base64（兼容本地临时文件与直链下载），再本地读取。"""
-        if image is None:
-            return None
-        try:
-            b64 = await image.convert_to_base64()
-            if b64:
-                return base64.b64decode(b64)
-        except Exception as exc:
-            logger.debug(f"[haina_price] convert_to_base64 失败，回退本地读取：{exc}")
-        return await self._read_source_bytes(image.url or image.file or "")
-
     async def _upload_image(self, data: bytes) -> str:
         """把图片匿名上传到配置的图床，返回公网 URL，失败抛 HainaApiError。"""
         if len(data) > MAX_UPLOAD_BYTES:
@@ -739,7 +641,7 @@ class HainaPricePlugin(Star):
         if host == "uguu":
             endpoint, field = UGUU_UPLOAD_URL, "files[]"
         else:
-            endpoint, field = (CATBOX_UPLOAD_URL, "fileToUpload") if host == "catbox" else (LITTERBOX_UPLOAD_URL, "fileToUpload")
+            endpoint, field = (CATBOX_UPLOAD_URL if host == "catbox" else LITTERBOX_UPLOAD_URL), "fileToUpload"
             form.add_field("reqtype", "fileupload")
             if host == "litterbox":
                 form.add_field("time", "1h")
@@ -781,26 +683,26 @@ class HainaPricePlugin(Star):
     async def _resolve_image_url(self, event: AstrMessageEvent | None, given: str) -> str:
         """得到可供海纳访问的公网图片 URL。
 
-        顺序：模型传入的公网 URL → OneBot 原始直链 → 消息图片组件的公网 URL →
-        还原本地/内联图片字节并上传图床。找不到图片返回空串。
+        模型传入公网 URL 时直接使用；否则取消息（或引用消息）中的图片，经框架
+        convert_to_base64 还原字节（兼容本地临时文件、base64、网络链接）后上传图床。
+        平台图片链接常有时效或防盗链，海纳无法访问，因此消息图片一律转存图床。
+        找不到图片返回空串。
         """
         given = (given or "").strip()
         if _is_http(given):
             return given
-        url = await self._onebot_image_url(event)
-        if url:
-            return url
         image = _first_image(event)
-        for v in (getattr(image, "url", ""), getattr(image, "file", "")) if image else ():
-            if _is_http(v):
-                return str(v).strip()
-        data = await self._read_source_bytes(given) if given else None
-        if not data and image is not None:
-            data = await self._image_bytes(image)
-        if not data:
+        if image is None:
             return ""
         if not bool(self._cfg("image_allow_upload", True)):
-            raise HainaApiError("图片为本地文件，且已在配置中禁止上传图床，无法识别；请开启「允许上传图床」或发送公网图片链接")
+            raise HainaApiError("已在配置中禁止上传图床，无法识别消息中的图片；请开启「允许上传图床」或提供公网图片链接")
+        try:
+            data = base64.b64decode(await image.convert_to_base64())
+        except Exception as exc:
+            logger.warning(f"[haina_price] 读取消息图片失败：{exc}")
+            raise HainaApiError("读取图片失败，请重新发送图片") from exc
+        if not data:
+            raise HainaApiError("读取图片失败，请重新发送图片")
         return await self._upload_image(data)
 
     async def tool_image_search(self, event: AstrMessageEvent, **kw: Any) -> str:
