@@ -64,6 +64,26 @@
     "type": "bool",
     "default": true
   },
+  "image_allow_upload": {
+    "description": "【图搜商品】允许上传图片到第三方图床",
+    "type": "bool",
+    "default": true,
+    "hint": "AstrBot 4.26+ 会把收到的图片保存为本地文件，海纳图搜只接受公网图片链接。开启后本地图片会匿名上传到下方图床换取公网链接（QQ/aiocqhttp 会优先复用原始图片直链，无需上传）。关闭则仅支持公网图片。"
+  },
+  "image_host": {
+    "description": "【图搜商品】图床",
+    "type": "string",
+    "default": "litterbox",
+    "options": ["litterbox", "uguu", "catbox"],
+    "labels": ["Litterbox（临时 1 小时，推荐）", "uguu（临时约 3 小时）", "Catbox（永久）"],
+    "hint": "临时图床更适合识图；catbox 常封机房/代理 IP。"
+  },
+  "image_upload_proxy": {
+    "description": "【图搜商品】图床上传代理",
+    "type": "string",
+    "default": "",
+    "hint": "仅用于上传图床的 HTTP/HTTPS 代理，如 http://127.0.0.1:7890；留空不使用。"
+  },
   "graph_size": {
     "description": "【知识图谱】最多展示产品实体数",
     "type": "int",

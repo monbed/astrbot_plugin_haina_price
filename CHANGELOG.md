@@ -2,6 +2,20 @@
 
 本项目的所有重要变更都会记录在此文件中。
 
+## [1.2.1] - 2026-11-07
+
+### 修复
+
+- 图搜商品不可用：AstrBot 4.26+ 会把收到的图片改写为本地临时文件，插件取不到公网 URL。现按以下顺序获取图片链接（移植自 astrbot_plugin_serpapi_imgsearch）：
+  1. 模型传入的公网 URL；
+  2. aiocqhttp 平台从 OneBot 原始上报（当前消息 / 被引用消息 `get_msg`）中复用 QQ 图片直链；
+  3. 图片组件本身的 http(s) 链接；
+  4. 还原本地 / base64 图片字节并匿名上传图床换取公网链接。
+
+### 新增
+
+- 配置 `image_allow_upload`（允许上传图床）、`image_host`（litterbox / uguu / catbox）、`image_upload_proxy`（上传代理）。
+
 ## [1.2.0] - 2026-11-06
 
 ### 新增

@@ -31,7 +31,7 @@
 | AstrBot | >= 4.24.0 | 需使用支持函数调用（Function Calling）的模型 |
 | 海纳 API Key | — | 在 [海纳开放平台](https://ai.zhidemai.com/haina-platform) 申请，并开通需要的能力 |
 
-**平台支持**：全平台。图搜商品需要平台提供公网可访问的图片 URL（如 QQ/aiocqhttp）。
+**平台支持**：全平台。海纳图搜只接受公网图片链接：QQ（aiocqhttp）优先复用原始上报中的图片直链；其他平台或 AstrBot 已把图片落地为本地文件时，插件会自动把图片匿名上传到第三方图床（默认 Litterbox，1 小时后自动删除）换取公网链接。
 
 ## 安装
 
@@ -48,6 +48,7 @@
 | 【商品检索】返回数 / 排序 / 商城 ID | 商城 ID 多个用 `;` 分隔 | 10 / 综合 / 全网 |
 | 【好价检索】返回条数 | — | 5 |
 | 【图搜商品】返回数 / 主体识别 / 关联好价 | — | 5 / 开 / 开 |
+| 【图搜商品】允许上传图床 / 图床 / 上传代理 | 本地图片转公网链接用；关闭则只支持公网图片 | 开 / Litterbox / 无 |
 | 【知识图谱】最多实体数 | — | 3 |
 | 【内容检索】返回条数 / 摘要字数 / 问题改写 / 数据来源 / 起始时间 | — | 5 / 300 / 关 / 全部 / 不限 |
 | 【内容检索 Pro】时间范围 | — | 两年 |
@@ -81,6 +82,8 @@
 - 403 表示 Key 未开通对应能力；429 表示超过 QPS 或额度。
 - 接口参数依据海纳开放平台文档实现；若平台调整网关地址，可在配置中修改。
 - 结构参考了 [astrbot_plugin_goofish_catcher](https://github.com/RichardLiuda/astrbot_plugin_goofish_catcher) 的“LLM 直接调用工具”思路，未复制其代码。
+- 图搜的本地图片处理（OneBot 原始直链复用、图片字节还原、图床上传）移植自同作者的 [astrbot_plugin_serpapi_imgsearch](https://github.com/monbed/astrbot_plugin_serpapi_imgsearch)。
+- 开启图床上传后，用户发送的图片会被上传到第三方公开图床，请注意隐私；不需要时可在配置中关闭。
 
 ## 目录结构
 
